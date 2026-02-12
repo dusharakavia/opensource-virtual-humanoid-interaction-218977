@@ -4,6 +4,7 @@ import { AvatarStage } from "./components/AvatarStage";
 import { ConversationHistory } from "./components/ConversationHistory";
 import { VoiceControls } from "./components/VoiceControls";
 import { AccessibilityPanel } from "./components/AccessibilityPanel";
+import { AboutCredits } from "./components/AboutCredits";
 import { useConversationSession } from "./hooks/useConversationSession";
 
 // PUBLIC_INTERFACE
@@ -43,6 +44,17 @@ function App() {
     if (w === "connected") return state.isStreaming ? "Listening & responding…" : "Ready";
     return "Offline (connect when backend WS is available)";
   }, [state]);
+
+  const robotExpressiveAttribution = useMemo(
+    () =>
+      [
+        "“RobotExpressive” model from KhronosGroup glTF Sample Models.",
+        "Source: https://github.com/KhronosGroup/glTF-Sample-Models/tree/master/2.0/RobotExpressive",
+        "License: See `2.0/RobotExpressive/README.md` in the source repository.",
+        "Changes: None.",
+      ].join("\n"),
+    []
+  );
 
   return (
     <div className="App">
@@ -114,6 +126,8 @@ function App() {
               largeText={largeText}
               onToggleLargeText={() => setLargeText((v) => !v)}
             />
+
+            <AboutCredits attributionText={robotExpressiveAttribution} />
 
             <section className="sysPanel" aria-label="System status">
               <div className="panelHeader">
