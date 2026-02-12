@@ -77,6 +77,7 @@ function App() {
 
             <VoiceControls
               onSendText={api.sendUserText}
+              onSendAudio={api.sendUserAudio}
               isStreaming={state.isStreaming}
               wsStatus={state.ws.status}
               backendHealthStatus={state.backendHealth.status}
@@ -133,9 +134,9 @@ function App() {
               </div>
 
               <p className="tinyStatus">
-                Configure backend URL via <code>REACT_APP_BACKEND_URL</code>. Current backend
-                OpenAPI only exposes <code>GET /</code>; WS path is provisioned for future backend
-                updates.
+                Configure backend URL via <code>REACT_APP_BACKEND_URL</code>. REST endpoints:{" "}
+                <code>/v1/sessions</code>, <code>/v1/chat</code>, <code>/v1/stt</code>,{" "}
+                <code>/v1/tts</code>. WebSocket: <code>/v1/ws?session_id=…</code>.
               </p>
             </section>
           </aside>

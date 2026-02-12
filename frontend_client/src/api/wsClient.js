@@ -1,19 +1,12 @@
 /**
  * WebSocket client wrapper for backend streaming conversation/audio.
  *
- * Backend OpenAPI currently only exposes GET / (health). This wrapper is implemented
- * to be ready once the backend adds a WebSocket endpoint.
+ * Backend expects:
+ * - Connect to `/v1/ws?session_id=<id>`
+ * - Server emits JSON events like: `assistant.token`, `assistant.message`, `stt.final`, etc.
  */
 
-function getBackendWsUrl() {
-  const backend = process.env.REACT_APP_BACKEND_URL;
-  if (backend) {
-    // Convert http(s) -> ws(s)
-    return backend.replace(/^http/, "ws").replace(/\/$/, "");
-  }
-  const proto = window.location.protocol === "https:" ? "wss:" : "ws:";
-  return `${proto}//${window.location.hostname}:3001`;
-}
+import { getBackendInfo } from "./restClient";
 
 /**
  * @typedef {Object} WsClientHandlers
@@ -24,17 +17,40 @@ function getBackendWsUrl() {
  */
 
 /**
+ * Build a WebSocket URL using the backend base URL and optional query params.
+ * @param {string} path
+ * @param {Record<string, string | number | boolean | null | undefined>} [query]
+ * @returns {string}
+ */
+function buildWsUrl(path, query = {}) {
+  const { wsBase } = getBackendInfo();
+  const base = wsBase.replace(/\/$/, "");
+  const p = path.startsWith("/") ? path : `/${path}`;
+
+  const qs = new URLSearchParams();
+  Object.entries(query).forEach(([k, v]) => {
+    if (v === null || v === undefined) return;
+    qs.set(k, String(v));
+  });
+
+  const suffix = qs.toString() ? `?${qs.toString()}` : "";
+  return `${base}${p}${suffix}`;
+}
+
+/**
  * Simple WS client with optional auto-reconnect.
  */
 export class WsClient {
   /**
    * @param {Object} params
-   * @param {string} params.path websocket path (e.g., "/ws")
+   * @param {string} params.path websocket path (e.g., "/v1/ws")
+   * @param {Record<string, any>} [params.query] query parameters
    * @param {WsClientHandlers} params.handlers
    * @param {boolean} [params.autoReconnect]
    */
-  constructor({ path, handlers, autoReconnect = true }) {
-    this.path = path || "/ws";
+  constructor({ path, query = {}, handlers, autoReconnect = true }) {
+    this.path = path || "/v1/ws";
+    this.query = query;
     this.handlers = handlers || {};
     this.autoReconnect = autoReconnect;
 
@@ -56,8 +72,7 @@ export class WsClient {
    */
   connect() {
     this._closedByUser = false;
-    const base = getBackendWsUrl().replace(/\/$/, "");
-    const url = `${base}${this.path.startsWith("/") ? this.path : `/${this.path}`}`;
+    const url = buildWsUrl(this.path, this.query);
 
     this._ws = new WebSocket(url);
 

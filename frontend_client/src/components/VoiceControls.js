@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import "../App.css";
 import { useAudioRecorder } from "../hooks/useAudioRecorder";
 
@@ -9,6 +9,7 @@ import { useAudioRecorder } from "../hooks/useAudioRecorder";
 // PUBLIC_INTERFACE
 export function VoiceControls({
   onSendText,
+  onSendAudio,
   isStreaming,
   wsStatus,
   backendHealthStatus,
@@ -32,6 +33,18 @@ export function VoiceControls({
     return "Disconnected";
   }, [backendHealthStatus, wsStatus, isStreaming]);
 
+  // When user stops recording, auto-send the captured audio to backend STT -> chat -> TTS.
+  useEffect(() => {
+    if (recorder.isRecording) return;
+    if (!onSendAudio) return;
+    if (recorder.chunks.length === 0) return;
+
+    const blob = new Blob(recorder.chunks, { type: "audio/webm" });
+    // Fire-and-forget; hook manages messages/errors.
+    onSendAudio({ audioBlob: blob, mimeType: "audio/webm" });
+    recorder.reset();
+  }, [recorder.isRecording, recorder.chunks, onSendAudio, recorder]);
+
   const onSubmit = (e) => {
     e.preventDefault();
     onSendText?.(text);
@@ -51,7 +64,7 @@ export function VoiceControls({
         <div className="controlCard">
           <h3 className="controlTitle">Voice</h3>
           <p className="controlDesc">
-            Push-to-talk captures microphone audio. (Backend streaming endpoint pending.)
+            Push-to-talk sends audio to the backend (STT → chat → TTS playback).
           </p>
 
           <div className="controlRow">
@@ -84,7 +97,9 @@ export function VoiceControls({
 
           <div className="tinyStatus" aria-live="polite">
             {!recorder.isSupported && "Your browser does not support audio capture."}
-            {recorder.isSupported && recorder.permissionState === "denied" && "Microphone permission denied."}
+            {recorder.isSupported &&
+              recorder.permissionState === "denied" &&
+              "Microphone permission denied."}
             {recorder.isSupported &&
               recorder.permissionState !== "denied" &&
               `${recorder.chunks.length} audio chunks captured`}
@@ -93,7 +108,7 @@ export function VoiceControls({
 
         <div className="controlCard">
           <h3 className="controlTitle">Text</h3>
-          <p className="controlDesc">Type a message and send (works even without WS).</p>
+          <p className="controlDesc">Type a message and send (REST fallback works without WS).</p>
 
           <form className="textForm" onSubmit={onSubmit}>
             <label className="srOnly" htmlFor="messageInput">

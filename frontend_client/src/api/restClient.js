@@ -59,6 +59,41 @@ function withJsonHeaders(init = {}) {
   };
 }
 
+/**
+ * @param {ArrayBuffer} buf
+ * @returns {string}
+ */
+function arrayBufferToBase64(buf) {
+  // Browser-safe conversion; avoids Node Buffer.
+  let binary = "";
+  const bytes = new Uint8Array(buf);
+  const chunkSize = 0x8000;
+  for (let i = 0; i < bytes.length; i += chunkSize) {
+    binary += String.fromCharCode(...bytes.subarray(i, i + chunkSize));
+  }
+  return window.btoa(binary);
+}
+
+/**
+ * @param {any} value
+ * @returns {string}
+ */
+function safeStringify(value) {
+  try {
+    return JSON.stringify(value);
+  } catch {
+    return String(value);
+  }
+}
+
+// PUBLIC_INTERFACE
+export function getBackendInfo() {
+  /** Get resolved backend base URL (http/https) and ws base URL (ws/wss). */
+  const httpBase = getBackendBaseUrl().replace(/\/$/, "");
+  const wsBase = httpBase.replace(/^http/, "ws");
+  return { httpBase, wsBase };
+}
+
 // PUBLIC_INTERFACE
 export async function getHealth({ signal } = {}) {
   /** Health check against GET / */
@@ -75,13 +110,127 @@ export async function getHealth({ signal } = {}) {
       const body = await readErrorBody(res);
       throw new Error(`Health check failed (${res.status}): ${body}`);
     }
-    // backend currently returns {} schema; tolerate empty body
-    try {
-      return await res.json();
-    } catch {
-      return {};
-    }
+    return await res.json();
   } finally {
     clearTimeout(timeout);
   }
+}
+
+// PUBLIC_INTERFACE
+export async function getCapabilities({ signal } = {}) {
+  /** Get backend capabilities (active providers and supported realtime event types). */
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), DEFAULT_TIMEOUT_MS);
+
+  try {
+    const res = await fetch(withBase("/v1/capabilities"), {
+      method: "GET",
+      ...withJsonHeaders(),
+      signal: signal || controller.signal,
+    });
+    if (!res.ok) {
+      const body = await readErrorBody(res);
+      throw new Error(`Capabilities failed (${res.status}): ${body}`);
+    }
+    return await res.json();
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+// PUBLIC_INTERFACE
+export async function createSession({ userId = null, metadata = {} } = {}, { signal } = {}) {
+  /** Create a new backend session. Returns {session_id, created_at_ms}. */
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), DEFAULT_TIMEOUT_MS);
+
+  try {
+    const res = await fetch(withBase("/v1/sessions"), {
+      method: "POST",
+      ...withJsonHeaders({
+        body: safeStringify({ user_id: userId, metadata }),
+      }),
+      signal: signal || controller.signal,
+    });
+    if (!res.ok) {
+      const body = await readErrorBody(res);
+      throw new Error(`Create session failed (${res.status}): ${body}`);
+    }
+    return await res.json();
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+// PUBLIC_INTERFACE
+export async function chat({ sessionId, text, stream = false }, { signal } = {}) {
+  /** Send user text to backend REST chat endpoint. Returns final assistant response. */
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), DEFAULT_TIMEOUT_MS);
+
+  try {
+    const res = await fetch(withBase("/v1/chat"), {
+      method: "POST",
+      ...withJsonHeaders({
+        body: safeStringify({ session_id: sessionId, text, stream }),
+      }),
+      signal: signal || controller.signal,
+    });
+    if (!res.ok) {
+      const body = await readErrorBody(res);
+      throw new Error(`Chat failed (${res.status}): ${body}`);
+    }
+    return await res.json();
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+// PUBLIC_INTERFACE
+export async function stt({ sessionId, audioBlob, mimeType = "audio/webm", language = null }) {
+  /** Speech-to-text: uploads audio as base64 in JSON. Returns {text, provider, ...}. */
+  if (!audioBlob) throw new Error("audioBlob is required for STT");
+
+  const ab = await audioBlob.arrayBuffer();
+  const audio_base64 = arrayBufferToBase64(ab);
+
+  const res = await fetch(withBase("/v1/stt"), {
+    method: "POST",
+    ...withJsonHeaders({
+      body: safeStringify({
+        session_id: sessionId,
+        audio_base64,
+        mime_type: mimeType || "audio/webm",
+        language,
+      }),
+    }),
+  });
+
+  if (!res.ok) {
+    const body = await readErrorBody(res);
+    throw new Error(`STT failed (${res.status}): ${body}`);
+  }
+  return await res.json();
+}
+
+// PUBLIC_INTERFACE
+export async function tts({ sessionId, text, voice = null, mimeType = "audio/wav" }) {
+  /** Text-to-speech: returns base64 audio (or not_available). */
+  const res = await fetch(withBase("/v1/tts"), {
+    method: "POST",
+    ...withJsonHeaders({
+      body: safeStringify({
+        session_id: sessionId,
+        text,
+        voice,
+        mime_type: mimeType || "audio/wav",
+      }),
+    }),
+  });
+
+  if (!res.ok) {
+    const body = await readErrorBody(res);
+    throw new Error(`TTS failed (${res.status}): ${body}`);
+  }
+  return await res.json();
 }
