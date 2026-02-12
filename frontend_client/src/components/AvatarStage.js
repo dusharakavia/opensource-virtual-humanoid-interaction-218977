@@ -9,8 +9,7 @@ import * as THREE from "three";
  * Loads the selected public GLB model (RobotExpressive) from a URL.
  */
 
-const ROBOT_EXPRESSIVE_GLB_URL =
-  "https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Models/master/2.0/RobotExpressive/glTF-Binary/RobotExpressive.glb";
+const ROBOT_EXPRESSIVE_GLB_URL = "/assets/RobotExpressive.glb";
 
 /**
  * Try to pick a sensible idle animation clip by name, otherwise fall back to the first clip.
@@ -210,7 +209,7 @@ export function AvatarStage({ status, reducedMotion }) {
           />
         </Canvas>
 
-        {!loadMeta && <LoadingOverlay status="Downloading model from raw.githubusercontent.com" />}
+        {!loadMeta && <LoadingOverlay status="Loading local GLB asset…" />}
 
         <div className="avatarStatus" aria-live="polite">
           {status}
