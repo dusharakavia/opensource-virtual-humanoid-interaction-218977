@@ -13,3 +13,61 @@ if (!window.HTMLElement.prototype.scrollIntoView) {
     writable: true,
   });
 }
+
+/**
+ * JSDOM does not implement canvas/WebGL. The app uses @react-three/fiber which will try to
+ * construct a WebGLRenderer during render, causing tests (and some preview checks) to crash.
+ *
+ * We provide a very small mock of getContext so three.js can initialize without throwing.
+ * This is NOT a real renderer; it only exists to keep unit tests focused on UI logic.
+ */
+if (!HTMLCanvasElement.prototype.getContext) {
+  Object.defineProperty(HTMLCanvasElement.prototype, "getContext", {
+    writable: true,
+    value: function getContext(contextType) {
+      // Only minimal stubs; enough for three.js/r3f init paths in tests.
+      if (contextType === "webgl" || contextType === "webgl2" || contextType === "experimental-webgl") {
+        return {
+          canvas: this,
+          getExtension: () => null,
+          getParameter: () => null,
+          createShader: () => ({}),
+          shaderSource: () => {},
+          compileShader: () => {},
+          createProgram: () => ({}),
+          attachShader: () => {},
+          linkProgram: () => {},
+          useProgram: () => {},
+          getShaderParameter: () => true,
+          getProgramParameter: () => true,
+          getShaderInfoLog: () => "",
+          getProgramInfoLog: () => "",
+          getAttribLocation: () => 0,
+          getUniformLocation: () => ({}),
+          viewport: () => {},
+          clearColor: () => {},
+          clear: () => {},
+          enable: () => {},
+          disable: () => {},
+          blendFunc: () => {},
+          depthFunc: () => {},
+          createBuffer: () => ({}),
+          bindBuffer: () => {},
+          bufferData: () => {},
+          createTexture: () => ({}),
+          bindTexture: () => {},
+          texImage2D: () => {},
+          texParameteri: () => {},
+          activeTexture: () => {},
+          drawArrays: () => {},
+          drawElements: () => {},
+        };
+      }
+
+      // 2D context isn't needed by the app, but returning null matches browser behavior.
+      if (contextType === "2d") return null;
+
+      return null;
+    },
+  });
+}
